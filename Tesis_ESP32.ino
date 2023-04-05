@@ -1,9 +1,10 @@
     // Proyecto de Tesis //
     // Monitor de Radiación Nuclear con Detectores Gaseosos (Geiger-Müller) - Código Final. //
     // Carlos Eduardo Castillo Godínez. //
-    // Ingeniería en Telecomunicaciones, Sistemas y Electrónica. // 
-    // 24 - Feb - 2023 //
+    // Ingeniería en Telecomunicaciones, Sistemas y Electrónica.
+    // 10 - Marzo - 2023 //
 
+        //Inclusiones de Librerías y parámetros de operación
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
@@ -16,16 +17,19 @@
 #define OLED_RESET -1         // Pin RESET de la pantalla OLED, -1 si no está conectado
 #define DHTTYPE DHT22         // DHT 22 (AM2302)
 #define DHTPIN 5              // Digital pin connected to the DHT sensor.
-const int pulsePin = 4;       // Pin GPIO utilizado para leer la salida de pulso del contador Geiger
-volatile long pulseCount = 0; // Variable Volátil de inicio de pulsos.
 
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET); //Objeto de la pantalla OLED
 
+// Definición de variables globales 
 int hora = 0;              // Variable Temporal horas transcurridas.
 int minuto = 0;            // Variable Temporal minutos transcurridos.
 int segundo = 0;           // Variable Temporal segundos transcurridos.
 DHT dht(DHTPIN, DHTTYPE);  // Función de tipo de sensor.
-const float Factor_Conversion = 0.0014899; // Define la tasa de conversión de conteos a dosis
+
+const int pulsePin = 4;       // Pin GPIO utilizado para leer la salida de pulso del contador Geiger
+volatile long pulseCount = 0; // Variable Volátil de inicio de pulsos.
+// FIN de Definición de variables globales 
+
 
 void IRAM_ATTR handleInterrupt() { //Función de interrupción que se ejecuta cuando se detecta un pulso en el pin de entrada
   pulseCount++;
@@ -33,6 +37,7 @@ void IRAM_ATTR handleInterrupt() { //Función de interrupción que se ejecuta cu
 
 void setup() {
   Serial.begin(9600);              // Inicializar la comunicación serial
+  dht.begin();
   pinMode(pulsePin, INPUT_PULLUP); // Configurar el pin de entrada como una entrada digital con pull-up
   digitalWrite(pulsePin, HIGH);    // Inicia el digitalWrite en ALTO.
   attachInterrupt(digitalPinToInterrupt(pulsePin), handleInterrupt, FALLING); //Configurar una interrupción en el pin de entrada para detectar flancos de bajada
@@ -52,8 +57,8 @@ void loop() {
     display.setCursor(0, 0);
     display.print("Contador GeigerMuller");
     display.setTextSize(1);
-    display.setCursor(30, 9);
-    display.print("& Sensores");
+    display.setCursor(0, 8);
+    display.print("[Proyecto de Tesis]");
     //Fin de Título de Interfaz 
  attachInterrupt(digitalPinToInterrupt(pulsePin), handleInterrupt, FALLING); //Volver a conectar la interrupción para detectar el siguiente pulso
   // FIN de configuración primoridial de arranque.
@@ -97,32 +102,29 @@ void loop() {
  	  } //Fin Ciclo Primario
   } // Fin del CONTADOR
 
-//Configuración CPM:
-  int cuentasPorMinuto = 0; // Inicializa la cuenta de conteos por minuto
-  unsigned long startTime = millis(); // Toma la hora de inicio de la medición
- while (millis() - startTime < 60000) { // Abre el While de Reconocimiento 
-    cuentasPorMinuto += digitalRead(pulsePin); // Agrega 1 si se detecta un conteo
-    delay(1000); // Espera 1 segundo antes de la siguiente medición
-  }// Cierra While de Ecuaciones de CPM.
+  //Configuración CPM:
+float MillisTranscurridos = millis();           //Crea una lectura continua promedio para CPM basada en las cuentas y el tiempo transcurrido
+float convertCPM = (60000)/MillisTranscurridos;  
+long cpm = round((((pulseCount-1)/2)*convertCPM));
    display.setTextSize(1);
    display.setCursor(73, 45);
    display.print("CPM:");
    display.setTextSize(1);
    display.setCursor(100, 45);
-   display.print(cuentasPorMinuto);
+   display.print(cpm);
   //FIN de Configuración CPM.
    
-  // Configuración de Dosis Radiactiva:    
-float dosis = cuentasPorMinuto / Factor_Conversion * 60.0; // Calcula la tasa de dosis en micro Sieverts por hora
+  // Configuración de Dosis Radiactiva: 
+float dosis = cpm*0.0057;          //Convierte CPM a microSieverts por hora, basada en el factor de conversion del tubo Geiger-Müller
       display.setTextSize(1);
       display.setCursor(0, 55);
       display.print("uSv/Hr:");
       display.setTextSize(1);
       display.setCursor(42, 55);
       display.print(dosis);
-  // FIN de Configuración de Dosis Radiactiva.
+  // FIN de Configuración de Dosis Radiactiva. 
     
-      if (pulseCount <9999){                              
+      if (pulseCount <99999){                              
       display.setTextSize(1);
       display.setCursor(0, 45);
       display.print("CT:");
@@ -131,16 +133,16 @@ float dosis = cuentasPorMinuto / Factor_Conversion * 60.0; // Calcula la tasa de
       display.print(pulseCount);   
     }
   
-    else if (pulseCount > 9999){            // Si el tiempo total es mayor que 1000, las cuentas totales se dividen para convertilo a "Kilo"
-      float pulseKCount = pulseCount/10000; // Ecuación de definición condicional que hasta llegar a 10,000 se utilizará el símbolo "k".
+    else if (pulseCount > 100000){            // Si el tiempo total es mayor que 1000, las cuentas totales se dividen para convertilo a "Kilo"
+      volatile long pulseKCount = pulseCount/1000; // Ecuación de definición condicional que hasta llegar a 10,000 se utilizará el símbolo "k".
       display.setTextSize(1);
       display.setCursor(0, 45);
-      display.print("CT:");
+      display.print("CTk:");
       display.setTextSize(1);
       display.setCursor(25, 45);
       display.print(pulseKCount);           // "k" es usado para referirse a un numero igual o mayor a 1000 conteos
       display.setTextSize(1);
-      display.setCursor(30, 45);
+      display.setCursor(61, 45);
       display.print("k");
     }
 
